@@ -1,0 +1,5 @@
+normflows
+Pillow
+matplotlib
+scikit-learn
+POT

@@ -7,6 +7,7 @@ import copy
 from sklearn.manifold import TSNE
 import os
 from scipy.linalg import sqrtm
+from dassl.modeling.ops.mixstyleflow.flow_generator import FlowStyleGenerator
 
 def wasserstein_distance_multivariate(mean1, cov1, mean2, cov2):
     mean_diff = mean1 - mean2
@@ -92,7 +93,19 @@ class ConstStyle(nn.Module):
             
         self.const_mean = torch.from_numpy(cluster_mean)
         self.const_cov = torch.from_numpy(cluster_cov)
-        self.generator = torch.distributions.MultivariateNormal(loc=self.const_mean, covariance_matrix=self.const_cov)
+
+        # A3: replace the original MultivariateNormal sampler with
+        # a normalizing-flow-based style generator.
+        style_dim = int(self.const_mean.numel())
+        self.generator = FlowStyleGenerator(
+            style_dim=style_dim,
+            hidden_size=None,
+            n_flows=getattr(self.cfg.TRAINER.CONSTSTYLE, "FLOW_N_FLOWS", 4),
+            clamp_value=getattr(self.cfg.TRAINER.CONSTSTYLE, "FLOW_CLAMP_VALUE", 2.0),
+            temp=getattr(self.cfg.TRAINER.CONSTSTYLE, "FLOW_TEMP", 1.0),
+            normalize_input=getattr(self.cfg.TRAINER.CONSTSTYLE, "FLOW_NORMALIZE_INPUT", False),
+            use_gpu=torch.cuda.is_available(),
+        )
 
     def plot_style_statistics(self, idx, epoch):
         domain_list = np.array(self.domain_list)
@@ -145,19 +158,16 @@ class ConstStyle(nn.Module):
                 gamma = const_mean
             
         else:
-            style_mean = []
-            style_std = []
-            for i in range(len(x_normed)):
-                style = self.generator.sample()
-                style = torch.reshape(style, (2, -1))
-                style_mean.append(style[0])
-                style_std.append(style[1])
-            
-            const_mean = torch.vstack(style_mean).float()
-            const_std = torch.vstack(style_std).float()
-            
-            const_mean = torch.reshape(const_mean, (const_mean.shape[0], const_mean.shape[1], 1, 1)).to('cuda')
-            const_std = torch.reshape(const_std, (const_std.shape[0], const_std.shape[1], 1, 1)).to('cuda')
+            # A3: sample one style vector per input feature.
+            # Shape: [B, 2*C], then split into generated mean/std.
+            style = self.generator.sample(len(x_normed), device=x.device)
+            style = torch.reshape(style, (style.shape[0], 2, -1))
+
+            const_mean = style[:, 0, :].float()
+            const_std = style[:, 1, :].float()
+
+            const_mean = torch.reshape(const_mean, (const_mean.shape[0], const_mean.shape[1], 1, 1))
+            const_std = torch.reshape(const_std, (const_std.shape[0], const_std.shape[1], 1, 1))
 
             beta = const_std
             gamma = const_mean
