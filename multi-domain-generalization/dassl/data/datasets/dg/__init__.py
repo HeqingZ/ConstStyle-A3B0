@@ -4,3 +4,4 @@ from .cifar_c import CIFAR10C, CIFAR100C
 from .digits_dg import DigitsDG
 from .digit_single import DigitSingle
 from .domain_net import DomainNetDG
+from .radar_frequency import RadarFrequency
