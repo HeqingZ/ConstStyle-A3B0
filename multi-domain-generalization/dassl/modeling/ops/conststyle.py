@@ -9,6 +9,8 @@ import os
 from scipy.linalg import sqrtm
 
 from dassl.modeling.ops.style_generators.flow_generator import A3FlowStyleGenerator
+from dassl.modeling.ops.style_generators.original_sampler import A0OriginalStyleGenerator
+
 from dassl.modeling.ops.style_alignments.adain_alignment import B0AdaINAlignment
 
 
@@ -123,14 +125,23 @@ class ConstStyle(nn.Module):
 
         style_dim = int(self.const_mean.numel())
 
-        if self.style_generator_name.upper() == "A3":
+#-------------------------#
+
+        generator_name = self.style_generator_name.upper()
+
+        if generator_name == "A0":
+            self.generator = A0OriginalStyleGenerator(
+                const_mean=self.const_mean,
+                const_cov=self.const_cov
+            )
+        elif generator_name == "A3":
             self.generator = A3FlowStyleGenerator(self.cfg, style_dim=style_dim)
         else:
             raise ValueError(
                 f"Unsupported STYLE_GENERATOR={self.style_generator_name}. "
-                "Currently implemented: A3."
+                "Currently implemented: A0, A3."
             )
-
+#-------------------#
         if self.style_alignment_name.upper() != "B0":
             raise ValueError(
                 f"Unsupported STYLE_ALIGNMENT={self.style_alignment_name}. "
