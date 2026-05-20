@@ -10,6 +10,7 @@ from scipy.linalg import sqrtm
 
 from dassl.modeling.ops.style_generators.original_sampler import A0OriginalStyleGenerator
 from dassl.modeling.ops.style_generators.dsu_generator import A1DSUStyleGenerator
+from dassl.modeling.ops.style_generators.trid_generator import A2TriDStyleGenerator
 from dassl.modeling.ops.style_generators.flow_generator import A3FlowStyleGenerator
 
 from dassl.modeling.ops.style_alignments.adain_alignment import B0AdaINAlignment
@@ -142,6 +143,13 @@ class ConstStyle(nn.Module):
                 factor=getattr(self.cfg.TRAINER.CONSTSTYLE, "DSU_FACTOR", 0.5),
                 eps=self.eps
             )
+        elif generator_name == "A2":
+            self.generator = A2TriDStyleGenerator(
+                const_mean=self.const_mean,
+                const_cov=self.const_cov,
+                factor=getattr(self.cfg.TRAINER.CONSTSTYLE, "TRID_FACTOR", 1.0),
+                eps=self.eps
+            )    
         elif generator_name == "A3":
             self.generator = A3FlowStyleGenerator(self.cfg, style_dim=style_dim)
         else:
