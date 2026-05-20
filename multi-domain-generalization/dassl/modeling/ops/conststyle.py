@@ -14,7 +14,7 @@ from dassl.modeling.ops.style_generators.trid_generator import A2TriDStyleGenera
 from dassl.modeling.ops.style_generators.flow_generator import A3FlowStyleGenerator
 
 from dassl.modeling.ops.style_alignments.adain_alignment import B0AdaINAlignment
-
+from dassl.modeling.ops.style_alignments.gated_alignment import B1GatedAlignment
 
 def wasserstein_distance_multivariate(mean1, cov1, mean2, cov2):
     mean_diff = mean1 - mean2
@@ -52,7 +52,7 @@ class ConstStyle(nn.Module):
         self.style_alignment_name = getattr(cfg.TRAINER.CONSTSTYLE, "STYLE_ALIGNMENT", "B0")
 
         self.generator = None
-        self.alignment = B0AdaINAlignment(eps=eps)
+        self.alignment = None
 
     def clear_memory(self):
         self.mean = []
@@ -158,12 +158,22 @@ class ConstStyle(nn.Module):
                 "Currently implemented: A0, A1, A3."
             )
 #-------------------#
-        if self.style_alignment_name.upper() != "B0":
+#++++++++++++++++++++++++++++#
+        alignment_name = self.style_alignment_name.upper()
+
+        if alignment_name == "B0":
+            self.alignment = B0AdaINAlignment(eps=self.eps)
+        elif alignment_name == "B1":
+            self.alignment = B1GatedAlignment(
+                eps=self.eps,
+                alpha=getattr(self.cfg.TRAINER.CONSTSTYLE, "B1_ALPHA", 0.5)
+            )
+        else:
             raise ValueError(
                 f"Unsupported STYLE_ALIGNMENT={self.style_alignment_name}. "
-                "Currently implemented: B0."
+                "Currently implemented: B0, B1."
             )
-
+#+++++++++++++++++++++++++++#
     def plot_style_statistics(self, idx, epoch):
         domain_list = np.array(self.domain_list)
         mean_list = copy.copy(self.mean_after)
@@ -222,6 +232,12 @@ class ConstStyle(nn.Module):
                     "cal_mean_std() must be called before applying ConstStyle."
                 )
             const_mean, const_std = self.generator(x)
+
+        if self.alignment is None:
+            raise RuntimeError(
+                "ConstStyle alignment is not initialized. "
+                "cal_mean_std() must be called before applying ConstStyle."
+            )
 
         out = self.alignment(x, const_mean, const_std)
         return out
